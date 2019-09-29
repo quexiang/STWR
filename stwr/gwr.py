@@ -9,7 +9,7 @@ from scipy.special import factorial
 from itertools import combinations as combo
 from spglm.family import Gaussian, Binomial, Poisson
 from spglm.glm import GLM, GLMResults
-from spglm.iwls import iwls, _compute_betas_gwr,_compute_betas_stwr,iwtls
+from spglm.iwls import iwls, _compute_betas_gwr,iwtls
 from spglm.utils import cache_readonly
 from .diagnostics import get_AIC, get_AICc, get_BIC, corr
 from .kernels import *
@@ -2174,7 +2174,7 @@ class STWR(GLM):
                 for i in range(m):
                     wi = self.W[i].reshape((-1, 1))
                     if isinstance(self.family, Gaussian): 
-                        betas, inv_xtx_xt = _compute_betas_stwr(
+                        betas, inv_xtx_xt = _compute_betas_gwr(
                                  self.y, self.X, wi)
                         influ[i] = np.dot(self.X[i], inv_xtx_xt[:, i])
                         predy = np.dot(self.X[i], betas)[0]
