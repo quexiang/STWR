@@ -1,0 +1,2 @@
+# STWR
+Spatiotemporal Weighted Regression
