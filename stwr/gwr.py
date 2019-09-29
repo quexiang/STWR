@@ -9,7 +9,7 @@ from scipy.special import factorial
 from itertools import combinations as combo
 from spglm.family import Gaussian, Binomial, Poisson
 from spglm.glm import GLM, GLMResults
-from spglm.iwls import iwls, _compute_betas_gwr,iwtls
+from spglm.iwls import iwls, _compute_betas_gwr
 from spglm.utils import cache_readonly
 from .diagnostics import get_AIC, get_AICc, get_BIC, corr
 from .kernels import *
@@ -2180,7 +2180,7 @@ class STWR(GLM):
                         predy = np.dot(self.X[i], betas)[0]
                         resid[i] = self.y[i] - predy
                     elif isinstance(self.family, (Poisson, Binomial)):
-                        rslt = iwtls(self.y, self.X, self.family,
+                        rslt = iwls(self.y, self.X, self.family,
                                     self.offset, None, ini_params, tol,
                                     max_iter, wi=wi)
                         inv_xtx_xt = rslt[5]
@@ -2197,7 +2197,7 @@ class STWR(GLM):
                 CCT = np.zeros((m, self.k))
                 for i in range(m):
                     wi = self.W[i].reshape((-1, 1))#[:m,]
-                    rslt = iwtls(self.y, self.X, self.family,
+                    rslt = iwls(self.y, self.X, self.family,
                                 self.offset, None, ini_params, tol,
                                 max_iter, wi=wi)
                     params[i, :] = rslt[0].T
