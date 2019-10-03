@@ -402,7 +402,7 @@ class _SpatiotemporalKernel(object):
     def __init__(self, data_list,y_list,tick_times_intervel,sita = None, gwr_bw_list = None,
                  bk_list =None, fixed=True,function='spt_bisquare',eps=1.0000001,
                  truncate=True,points_list=None, dspal_mat_list=None,sorted_dspal_list=None,
-                 d_tmp_list=None,dspmat_tol=None,dtmat_tol=None,alpha =0.3,mbpred=False,spherical=False,pred = False):       
+                 d_tmp_list=None,dspmat_tol=None,dtmat_tol=None,alpha =0.3,mbpred=False,spherical=False,pred = False,seed = None):       
         datalens = len(data_list) 
         if issubclass(type(data_list[0]), scipy.spatial.KDTree):
             for i in range(datalens):
@@ -448,6 +448,10 @@ class _SpatiotemporalKernel(object):
         
         self.fixed = fixed
         self.trunc = truncate
+        if seed is None:
+            np.random.seed(5536)
+        else:
+            np.random.seed(seed)
         if(self.nbt_len == 1):
             m_dtm0 = True
         if dspmat_tol is None:
