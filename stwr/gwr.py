@@ -1200,7 +1200,7 @@ class GWRResults(GLMResults):
         """
         summary = summaryModel(self) + summaryGLM(self) + summaryGWR(self)
         print(summary)
-        return
+        return summary
 
 
 class GWRResultsLite(object):
@@ -2888,4 +2888,4 @@ class STWRResults(GLMResults):
         """
         summary = summaryModel(self) + summaryGLM(self) + summarySTWR(self)
         print(summary)
-        return
+        return summary
