@@ -1,5 +1,6 @@
 **S**patiotemporal **W**eighted **R**egression (STWR)
 =======================================
+news: We are now developing a network tool for Fast-STWR. Its trial version can be accessed via http://deeptime.cloud/paleoclimate after registered.This tool is integrated in "Analysizing Data" of STWR.
 
 Spatiotemporal Weighted Regression
 
