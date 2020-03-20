@@ -1,5 +1,6 @@
 **S**patiotemporal **W**eighted **R**egression (STWR)
 =======================================
+News:1.Welcome to read and comment our article "A Spatiotemporal Weighted Regression Model (STWRv1.0) for Analyzing Local Non-stationarity in Space and Time",which can be accessed via the link below:https://doi.org/10.5194/gmd-2019-292 
      2.We are now developing a network tool for Fast-STWR. Its trial version can be accessed via http://deeptime.cloud/paleoclimate after registered.This tool is integrated in "Analysizing Data" of STWR.
       
 Spatiotemporal Weighted Regression
