@@ -1,7 +1,7 @@
 **S**patiotemporal **W**eighted **R**egression (STWR)
 =======================================
-News: We are now developing a network tool for Fast-STWR. Its trial version can be accessed via http://deeptime.cloud/paleoclimate after registered.This tool is integrated in "Analysizing Data" of STWR.
-
+     2.We are now developing a network tool for Fast-STWR. Its trial version can be accessed via http://deeptime.cloud/paleoclimate after registered.This tool is integrated in "Analysizing Data" of STWR.
+      
 Spatiotemporal Weighted Regression
 
 This module provides functionality to calibrate STWR as well as traditional GWR and MGWR 2.0.2 (https://github.com/pysal/mgwr). It is
