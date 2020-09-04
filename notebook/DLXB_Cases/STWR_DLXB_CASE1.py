@@ -20,19 +20,32 @@ def procedure(second =1):
 
 
 #1.Data  generating process (DGP) for initial three different heterogenity during the time in the space.
+#beta = np.ones([4,25,25])
+#beta[0] = 3*beta[0]
+#for i in range(25) :
+#            for j in range(25):
+#                beta[1,i,j] = 1+(i+j)/12         
+#for i in range(25) :
+#            for j in range(25):
+#                beta[2,i,j] = 1 +(36- (6- i/2)**2)*(36- (6- j/2)**2)/324
+#for i in range(25) :
+#            for j in range(25):
+##                beta[3,i,j] = np.random.choice((-1,1))*5*math.sin(1/8*np.pi*(j+i)) 
+#                beta[3,i,j] = 1+4*math.sin(1/8*np.pi*(j+i)) 
+
+#book charpter
 beta = np.ones([4,25,25])
 beta[0] = 3*beta[0]
 for i in range(25) :
             for j in range(25):
-                beta[1,i,j] = 1+(i+j)/12         
+                beta[2,i,j] = 1+(i+j)/12         
 for i in range(25) :
             for j in range(25):
-                beta[2,i,j] = 1 +(36- (6- i/2)**2)*(36- (6- j/2)**2)/324
+                beta[3,i,j] = 1 +(36- (6- i/2)**2)*(36- (6- j/2)**2)/324
 for i in range(25) :
             for j in range(25):
 #                beta[3,i,j] = np.random.choice((-1,1))*5*math.sin(1/8*np.pi*(j+i)) 
-                beta[3,i,j] = 1+4*math.sin(1/8*np.pi*(j+i)) 
-
+                beta[1,i,j] = 1+4*math.sin(1/8*np.pi*(j+i)) 
 
 
 #2.Define three type of heterogeneity trend functions#
@@ -561,7 +574,7 @@ ax_pam_stwr = fig_parmas_stwr.add_subplot(gs_stwr[0,2],title= "Estimated Beta 2 
 psm_pam_stwr = ax_pam_stwr.pcolormesh(draw_stwr_parms[2], cmap=jet, rasterized=True,vmin= vmin2, vmax = vmax2)
 fig_parmas_stwr.colorbar(psm_pam_stwr, ax = ax_pam_stwr)
 
-ax_pam_stwr = fig_parmas_stwr.add_subplot(gs_stwr[0,3],title= "Estimated Beta 2 in STWR")
+ax_pam_stwr = fig_parmas_stwr.add_subplot(gs_stwr[0,3],title= "Estimated Beta 3 in STWR")
 psm_pam_stwr = ax_pam_stwr.pcolormesh(draw_stwr_parms[3], cmap=jet, rasterized=True,vmin= vmin3, vmax = vmax3)
 fig_parmas_stwr.colorbar(psm_pam_stwr, ax = ax_pam_stwr)
 plt.show()
