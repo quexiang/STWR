@@ -24,6 +24,8 @@ Features
 - MGWR model calibration via GAM iterative backfitting for Gaussian model
 - MGWR covariate-specific inference, including a multiple hypothesis test
   correction and local collinearity  
+
+**R**elated **A**rticles 
 =======================================
-Related article:
+Related articles:
 1 https://doi.org/10.5194/gmd-2019-292 
