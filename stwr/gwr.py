@@ -2288,6 +2288,8 @@ class STWRResults(GLMResults):
             m = self.model_copy.W.shape[0]
             self.y = self.model_copy.y[:m]
             self.n = m
+            self.y_ful = self.model_copy.y
+            self.X_ful = self.model_copy.X
             self.model_copy.y = self.model_copy.y[:m]
             self.model_copy.X = self.model_copy.X[:m] 
         else:
@@ -2373,17 +2375,28 @@ class STWRResults(GLMResults):
         """
         weighted mean of y
         """
-        if self.model_copy.points is not None:
-            n = len(self.model_copy.points)
+#        if self.model_copy.points is not None:
+#            n = len(self.model_copy.points)
+#        else:
+#            n = self.n
+#        off = self.offset.reshape((-1, 1))
+#        arr_ybar = np.zeros(shape=(self.n, 1))
+#        for i in range(n):
+#            w_i = np.reshape(np.array(self.W[i]), (-1, 1))
+#            sum_yw = np.sum(self.y.reshape((-1, 1)) * w_i)
+#            arr_ybar[i] = 1.0 * sum_yw / np.sum(w_i * off)
+#        return arr_ybar
+        if self.model_copy.points_list is not None:
+            n = len(self.model_copy.points_list[-1])
         else:
-            n = self.n
+            n =self.W.shape[0] 
         off = self.offset.reshape((-1, 1))
         arr_ybar = np.zeros(shape=(self.n, 1))
-        for i in range(n):
-            w_i = np.reshape(np.array(self.W[i]), (-1, 1))
-            sum_yw = np.sum(self.y.reshape((-1, 1)) * w_i)
+        for i in range(n):         
+            w_i = self.W[i].reshape((-1, 1))
+            sum_yw = np.sum(self.y_ful.reshape((-1, 1)) * w_i)
             arr_ybar[i] = 1.0 * sum_yw / np.sum(w_i * off)
-        return arr_ybar
+        return arr_ybar[:n]
 
     @cache_readonly
     def TSS(self):
@@ -2396,14 +2409,19 @@ class STWRResults(GLMResults):
         relationships.
 
         """
-        if self.model_copy.points is not None:
-            n = len(self.model_copy.points)
+        #        if self.model_copy.points is not None:
+#            n = len(self.model_copy.points)  
+#        else:
+#                    n = self.n         
+        if  self.model_copy.points_list is not None:
+            n = len(self.model_copy.points_list[-1])
         else:
-            n = self.n
+            n = self.W.shape[0]  
+            
         TSS = np.zeros(shape=(n, 1))
         for i in range(n):
             TSS[i] = np.sum(np.reshape(np.array(self.W[i]), (-1, 1)) *
-                            (self.y.reshape((-1, 1)) - self.y_bar[i])**2)
+                            (self.y_ful.reshape((-1, 1)) - self.y_bar[i])**2)
         return TSS
 
     @cache_readonly
@@ -2416,15 +2434,22 @@ class STWRResults(GLMResults):
         Geographically weighted regression: the analysis of spatially varying
         relationships.
         """
-        if self.model_copy.points is not None:
-            n = len(self.model_copy.points)
+        #        if self.model_copy.points is not None:
+#            n = len(self.model_copy.points)
+#            resid = self.model_copy.exog_resid.reshape((-1, 1))
+#        else:
+#            n = self.n
+#            resid = self.resid_response.reshape((-1, 1))
+        if self.model_copy.points_list is not None:
+            n = len(self.model_copy.points_list[-1])
             resid = self.model_copy.exog_resid.reshape((-1, 1))
         else:
-            n = self.n
+            n = self.W.shape[0]
             resid = self.resid_response.reshape((-1, 1))
-        RSS = np.zeros(shape=(n, 1))
-        for i in range(n):
-            RSS[i] = np.sum(np.reshape(np.array(self.W[i]), (-1, 1))
+        
+        RSS = np.zeros(shape=(n, 1))      
+        for i in range(n):      
+            RSS[i] = np.sum(self.W[i].reshape((-1, 1))[:n]
                             * resid**2)
         return RSS
 
