@@ -89,6 +89,8 @@ stwr_model = STWR(cal_coords_list,cal_y_list,cal_X_list,delt_stwr_intervel,optsi
 
 stwr_results = stwr_model.fit()
 print(stwr_results.summary())
+stwr_localr2 = stwr_results.localR2
+print(stwr_localr2)
 
 #gwr  数据只有最后一期
 gwr_selector = Sel_BW(cal_cord_gwr, cal_y_gwr, cal_X_gwr,spherical = True)
@@ -99,6 +101,5 @@ gwr_bw= gwr_selector.search(bw_min=2)
 gwr_model = GWR(cal_cord_gwr, cal_y_gwr, cal_X_gwr, gwr_bw,spherical = True)
 gwr_results = gwr_model.fit()
 print(gwr_results.summary())
-
-            
-
+gwr_localr2 = gwr_results.localR2
+print(gwr_localr2)
