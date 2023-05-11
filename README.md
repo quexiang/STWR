@@ -31,4 +31,5 @@ Related articles:
 - https://doi.org/10.5194/gmd-2019-292
 - https://doi.org/10.1016/j.cageo.2021.104723
 - https://doi.org/10.1007/978-3-030-26050-7_307-1
+- https://doi.org/10.13207/j.cnki.jnwafu.2022.11.010
 - https://doi.org/10.3390/ijgi12040151
