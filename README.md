@@ -32,4 +32,6 @@ Related articles:
 - https://doi.org/10.1016/j.cageo.2021.104723
 - https://doi.org/10.1007/978-3-030-26050-7_307-1
 - https://doi.org/10.13207/j.cnki.jnwafu.2022.11.010
+- https://doi.org/10.1142/9789811275449_0030
+- https://doi.org/10.1142/9789811275449_0034
 - https://doi.org/10.3390/ijgi12040151
