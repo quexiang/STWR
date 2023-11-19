@@ -319,12 +319,15 @@ def cspatiltemporaldist(cal_data_list1,cal_data_list2,y_valuelist,bt_size,deta_t
                 for j in range(nsize) :
                     for q in range(mlist[i+1]):
                         dspatialmat_tick[j,q]  = _haversine(cal_data_list1[-1][j][0], cal_data_list1[-1][j][1], cal_data_list2[-(2+i)][q][0], cal_data_list2[-(2+i)][q][1])
+                        if(y_value_tick[q] == 0):
+                            y_value_tick[q] += 0.000001
                         dtemporalmat_tick[j,q] =  delta_t_total*abs((y_value_tick[q]-y_value_0[j])/y_value_tick[q])/delt_tick_tol
             else:
                 dspatialmat_tick = cdist_scipy(cal_data_list1[-1],cal_data_list2[-(2+i)])     
                 y_value_tick = y_value_tick.flatten()
                 for j in range(nsize) :
-                    ydelt_j = np.repeat(y_value_0[j],mlist[i+1],axis=0)
+                    ydelt_j = np.repeat(y_value_0[j],mlist[i+1],axis=0)  
+                    y_value_tick = np.where(y_value_tick ==0, 0.000001,y_value_tick)    
                     dtemporalmat_tick[j] =  delta_t_total*(np.absolute(( y_value_tick- ydelt_j)/y_value_tick))/delt_tick_tol
                                            
             dspatialmat_tol[:nsize,m_size_tick:m_size_tick+mlist[i+1]] = dspatialmat_tick    
