@@ -35,3 +35,4 @@ Related articles:
 - https://doi.org/10.1142/9789811275449_0030
 - https://doi.org/10.1142/9789811275449_0034
 - https://doi.org/10.3390/ijgi12040151
+- https://doi.org/10.1007/s12145-023-01165-7 
