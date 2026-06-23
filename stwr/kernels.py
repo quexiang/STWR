@@ -1,418 +1,557 @@
-# GWR kernel function specifications
+# GWR and STWR kernel function specifications
+# STWR kernels developed by Xiang Que (xiangq@uidaho.edu, quexiang@fafu.edu.cn)
+# GWR kernels based on the MGWR 2.0.2 implementation by Taylor Oshan (tayoshan@gmail.com)
 
-__author__ = "STWR is XiangQue xiangq@uidaho.edu and GWR,MGWR is Taylor Oshan Tayoshan@gmail.com"
-
-import scipy
-from scipy.spatial.kdtree import KDTree
-import numpy as np
-from scipy.spatial.distance import cdist as cdist_scipy
-from math import radians, sin, cos, sqrt, asin,exp,atan,tan
 import copy
 
-#adaptive specifications should be parameterized with nn-1 to match original gwr
-#implementation. That is, pysal counts self neighbors with knn automatically.
+import numpy as np
 
-def fix_gauss(coords, bw, points=None, dmat=None,sorted_dmat=None,spherical=False):
-    """
-    Fixed Gaussian kernel.
-    """
-    w = _Kernel(coords, function='gwr_gaussian', bandwidth=bw,
-            truncate=False, points=points, dmat=dmat,sorted_dmat=sorted_dmat,spherical=spherical)
-    return w.kernel
+# ---------------------------------------------------------------------------
+# Optional numba JIT compilation for distance computations.
+# When numba is available, local_cdist is JIT-compiled for speed;
+# otherwise it falls back to pure Python.
+# ---------------------------------------------------------------------------
+try:
+    from numba import njit
+except ImportError:
 
-def adapt_gauss(coords, nn, points=None, dmat=None,sorted_dmat=None,spherical=False):
-    """
-    Spatially adaptive Gaussian kernel.
-    """
-    w = _Kernel(coords, fixed=False, k=nn-1, function='gwr_gaussian',
-            truncate=False, points=points, dmat=dmat,sorted_dmat=sorted_dmat,spherical=spherical)
-    return w.kernel
+    def njit(func):
+        return func
 
-def fix_bisquare(coords, bw, points=None, dmat=None,sorted_dmat=None,spherical=False):
-    """
-    Fixed bisquare kernel.
-    """
-    w = _Kernel(coords, function='bisquare', bandwidth=bw, points=points, dmat=dmat,sorted_dmat=sorted_dmat,spherical=spherical)
-    return w.kernel
 
-def adapt_bisquare(coords, nn, points=None, dmat=None,sorted_dmat=None,spherical=False):
+@njit
+def local_cdist(coords_i, coords, spherical):
     """
-    Spatially adaptive bisquare kernel.
-    """
-    w = _Kernel(coords, fixed=False, k=nn-1, function='bisquare', points=points, dmat=dmat,sorted_dmat=sorted_dmat,spherical=spherical)
-    return w.kernel
+    Compute distances from a single point to a set of points.
 
-def fix_exp(coords, bw, points=None, dmat=None,sorted_dmat=None,spherical=False):
-    """
-    Fixed exponential kernel.
-    """
-    w = _Kernel(coords, function='exponential', bandwidth=bw,
-            truncate=False, points=points, dmat=dmat,sorted_dmat=sorted_dmat,spherical=spherical)
-    return w.kernel
+    Parameters
+    ----------
+    coords_i : array (2,)
+        Coordinates of the reference point (x, y) or (lon, lat).
+    coords : array (n, 2)
+        Coordinates of target points.
+    spherical : bool
+        If True, use Haversine distance (km). If False, use Euclidean.
 
-def adapt_exp(coords, nn, points=None, dmat=None,sorted_dmat=None,spherical=False):
+    Returns
+    -------
+    array (n,)
+        Distances from coords_i to each point in coords.
     """
-    Spatially adaptive exponential kernel.
-    """
-    w = _Kernel(coords, fixed=False, k=nn-1, function='exponential',
-            truncate=False, points=points, dmat=dmat,sorted_dmat=sorted_dmat,spherical=spherical)
-    return w.kernel
-def fix_spt_bisquare(coords_list,y_list,tick_times_intervel,sita, tick_nums,gwr_bw0,
-                     points_list=None, alpha =0.3,dspmat=None,dtmat=None,sorted_dmat=None,mbpred = False,spherical=False,prediction =False,rcdtype = 0):
-    """
-    Fixed spatiotemporal kernel.
-    """
-    gwr_bw_list = np.repeat(gwr_bw0,tick_nums).tolist()
-    w = _SpatiotemporalKernel(coords_list, y_list,tick_times_intervel,sita, gwr_bw_list,function='spt_bisquare',
-             points_list=points_list, dspmat_tol=dspmat,dtmat_tol=dtmat,sorted_dmat=sorted_dmat,alpha =alpha,mbpred=mbpred,spherical=spherical,pred =prediction)
-    
-    if rcdtype ==1:
-        return w.kernel,w.dtmat_tol,w.dst_dtamplist
-    else:
-        return w.kernel
-
-def adapt_spt_bisquare(coords_list,y_list,tick_times_intervel,
-                       sita, tick_nums,gwr_bw0,
-                       dspal_m_list = None,dsorteds_m_list = None,
-                       d_t_list = None,dspmat = None,dtmat=None,
-                       points_list=None,alpha =0.3,mbpred = False,spherical=False,prediction =False,rcdtype = 0):
-    """
-    Spatially adaptive spatiotemporal kernel.
-    """
-    gwr_bw_list = np.repeat(gwr_bw0,tick_nums).tolist()
-    w = _SpatiotemporalKernel(coords_list, y_list,tick_times_intervel,sita, 
-                              bk_list=gwr_bw_list, fixed=False,function='spt_bisquare',
-                              dspal_mat_list = dspal_m_list,
-                              sorted_dspal_list=dsorteds_m_list,
-                              d_tmp_list=d_t_list,
-                              dspmat_tol=dspmat,dtmat_tol=dtmat,points_list=points_list,
-                              alpha =alpha,mbpred = mbpred,spherical=spherical,pred =prediction)#,truncate=False
-    
-    if rcdtype ==1:
-        return w.kernel,w.dtmat_tol,w.dst_dtamplist
-    else:
-        return w.kernel
-def fix_spt_gwr_gaussian(coords_list,y_list,tick_times_intervel,sita, tick_nums,gwr_bw0,points_list=None,alpha =0.3,
-                         dspmat=None,dtmat=None,sorted_dmat=None,mbpred = False,spherical=False,prediction =False,rcdtype = 0):
-    """
-    Fixed spatiotemporal kernel.
-    """
-    gwr_bw_list = np.repeat(gwr_bw0,tick_nums).tolist()
-    w = _SpatiotemporalKernel(coords_list, y_list,tick_times_intervel,sita, gwr_bw_list,function='spt_gwr_gaussian',
-             truncate=False,points_list=points_list, dspmat_tol=dspmat,dtmat_tol=dtmat,
-             sorted_dmat=sorted_dmat,alpha =alpha,mbpred=mbpred,spherical=spherical,pred =prediction)
-    
-    if rcdtype ==1:
-        return w.kernel,w.dtmat_tol,w.dst_dtamplist
-    else:
-        return w.kernel
-
-def spt_gwr_gaussian(coords_list,y_list,tick_times_intervel,
-                       sita, tick_nums,gwr_bw0,
-                       dspal_m_list = None,dsorteds_m_list = None,
-                       d_t_list = None,dspmat = None,dtmat=None,points_list=None,alpha =0.3,mbpred = False,
-                       spherical=False,prediction =False,rcdtype = 0):
-    """
-    Spatially adaptive spatiotemporal kernel.
-    """
-    gwr_bw_list = np.repeat(gwr_bw0,tick_nums).tolist()
-    w = _SpatiotemporalKernel(coords_list, y_list,tick_times_intervel,sita, 
-                              bk_list=gwr_bw_list, fixed=False,function='spt_gwr_gaussian',
-                              truncate=False,
-                              dspal_mat_list = dspal_m_list,
-                              sorted_dspal_list=dsorteds_m_list,
-                              d_tmp_list=d_t_list,
-                              dspmat_tol=dspmat,dtmat_tol=dtmat,points_list=points_list,
-                              alpha =alpha,mbpred = mbpred,spherical=spherical,pred =prediction)#,truncate=False
-    
-    if rcdtype ==1:
-        return w.kernel,w.dtmat_tol,w.dst_dtamplist
-    else:
-        return w.kernel
-
-from scipy.spatial.distance import cdist
-
-#Customized Kernel class user for GWR because the default PySAL kernel class
-#favors memory optimization over speed optimizations and GWR often needs the 
-#speed optimization since it is not always assume points far awary
-# are truncated #to zero
-
-def cdist(coords1,coords2,spherical):
-    def _haversine(lon1, lat1, lon2, lat2):
-        R = 6371.0 # Earth radius in kilometers
-        dLat = radians(lat2 - lat1)
-        dLon = radians(lon2 - lon1)
-        lat1 = radians(lat1)
-        lat2 = radians(lat2)
-        a = sin(dLat/2)**2 + cos(lat1)*cos(lat2)*sin(dLon/2)**2
-        c = 2*asin(sqrt(a))
-        return R * c
-    n = len(coords1)
-    m = len(coords2)
-#    dmat = np.zeros((n,n))
-    dmat = np.zeros((n,m))
-
     if spherical:
-        for i in range(n) :
-            for j in range(m):
-                dmat[i,j] = _haversine(coords1[i][0], coords1[i][1], coords2[j][0], coords2[j][1])
+        dLat = np.radians(coords[:, 1] - coords_i[1])
+        dLon = np.radians(coords[:, 0] - coords_i[0])
+        lat1 = np.radians(coords[:, 1])
+        lat2 = np.radians(coords_i[1])
+        a = np.sin(
+            dLat / 2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dLon / 2)**2
+        c = 2 * np.arcsin(np.sqrt(a))
+        R = 6371.0  # Earth's mean radius in km
+        return R * c
     else:
-        dmat = cdist_scipy(coords1,coords2)
+        return np.sqrt(np.sum((coords_i - coords)**2, axis=1))
 
-    return dmat
 
-class _Kernel(object):
+# ==============================================================================
+# Spatial-only kernel (used by GWR and MGWR)
+# ==============================================================================
+
+
+class Kernel(object):
     """
-    GWR kernel function specifications.
+    Spatial kernel for GWR/MGWR models.
 
+    Computes kernel weights for a single calibration point i based on
+    distances to all data points, using either a fixed bandwidth
+    (distance) or an adaptive bandwidth (k-nearest-neighbor distance).
+
+    Parameters
+    ----------
+    i : int
+        Index of the calibration point.
+    data : array (n, 2)
+        Coordinates of all observations.
+    bw : float or int
+        Bandwidth value: fixed distance if ``fixed=True``, or number
+        of nearest neighbors if ``fixed=False``.
+    fixed : bool
+        True for fixed (distance-based) bandwidth, False for adaptive.
+    function : str
+        Kernel function name: 'gaussian', 'bisquare', 'exponential',
+        'triangular', 'uniform', 'quadratic', 'quartic'.
+    eps : float
+        Small tolerance to prevent division by zero in adaptive bandwidth.
+    points : array, optional
+        If provided, use as calibration locations instead of ``data``.
+    spherical : bool
+        If True, compute Haversine distances for lon/lat coordinates.
     """
-    def __init__(self, data, bandwidth=None, fixed=True, k=None,
-                 function='triangular', eps=1.0000001, ids=None, truncate=True,
-                 points=None, dmat=None,sorted_dmat=None, spherical=False): #Added truncate flag
-        
 
-        if issubclass(type(data), scipy.spatial.KDTree):
-            self.data = data.data
-            data = self.data
+    def __init__(self, i, data, bw=None, fixed=True, function='triangular',
+                 eps=1.0000001, ids=None, points=None, spherical=False):
+
+        if points is None:
+            self.dvec = local_cdist(data[i], data, spherical).reshape(-1)
         else:
-            self.data = data
-        if k is not None:
-            self.k = int(k) + 1
-        else:
-            self.k = k    
-        self.spherical = spherical
-        self.searching = True
-        
-        if dmat is None:
-            self.searching = False
-        
-        if self.searching:
-            self.dmat = dmat
-            self.sorted_dmat = sorted_dmat
-        else:
-            if points is None:
-                self.dmat = cdist(self.data, self.data, self.spherical)
-            else:
-                self.points = points
-                self.dmat = cdist(self.points, self.data, self.spherical)
+            self.dvec = local_cdist(points[i], data, spherical).reshape(-1)
 
         self.function = function.lower()
-        self.fixed = fixed
-        self.eps = eps
-        self.trunc = truncate
-        if bandwidth:
-            try:
-                bandwidth = np.array(bandwidth)
-                bandwidth.shape = (len(bandwidth), 1)
-            except:
-                bandwidth = np.ones((len(data), 1), 'float') * bandwidth
-            self.bandwidth = bandwidth
+
+        if fixed:
+            self.bandwidth = float(bw)
         else:
-            self._set_bw()
-        self.kernel = self._kernel_funcs(self.dmat/self.bandwidth)
-        if self.trunc:
-            mask = np.repeat(self.bandwidth, len(self.data), axis=1)
-            self.kernel[(self.dmat >= mask)] = 0
-                
-    def _set_bw(self):
-        if self.searching:
-            if self.k is not None:
-                dmat = self.sorted_dmat[:,:self.k]
-            else:
-                dmat = self.dmat
-        else:
-            if self.k is not None:
-                dmat = np.sort(self.dmat)[:,:self.k]
-            else:
-                dmat = self.dmat
-        
-        if self.fixed:
-            # use max knn distance as bandwidth
-            bandwidth = dmat.max() * self.eps
-            n = len(self.data)
-            self.bandwidth = np.ones((n, 1), 'float') * bandwidth
-        else:
-            # use local max knn distance
-            self.bandwidth = dmat.max(axis=1) * self.eps
-            self.bandwidth.shape = (self.bandwidth.size, 1)
+            # Adaptive bandwidth: use the distance to the bw-th nearest neighbor.
+            # ``np.partition`` gives O(n) partial sort.
+            self.bandwidth = np.partition(
+                self.dvec,
+                int(bw) - 1)[int(bw) - 1] * eps
+
+        self.kernel = self._kernel_funcs(self.dvec / self.bandwidth)
+
+        if self.function == "bisquare":  # Truncate weights beyond bandwidth
+            self.kernel[(self.dvec >= self.bandwidth)] = 0
 
     def _kernel_funcs(self, zs):
-        # functions follow Anselin and Rey (2010) table 5.4
+        """
+        Evaluate the kernel function on standardized distances zs = d / bw.
+
+        Functions follow Anselin and Rey (2010), Table 5.4.
+        """
         if self.function == 'triangular':
             return 1 - zs
         elif self.function == 'uniform':
             return np.ones(zs.shape) * 0.5
         elif self.function == 'quadratic':
-            return (3. / 4) * (1 - zs ** 2)
+            return (3. / 4) * (1 - zs**2)
         elif self.function == 'quartic':
-            return (15. / 16) * (1 - zs ** 2) ** 2
+            return (15. / 16) * (1 - zs**2)**2
         elif self.function == 'gaussian':
-            c = np.pi * 2
-            c = c ** (-0.5)
-            return c * np.exp(-(zs ** 2) / 2.)
-        elif self.function == 'gwr_gaussian':
-            return np.exp(-0.5*(zs)**2)
+            return np.exp(-0.5 * (zs)**2)
         elif self.function == 'bisquare':
-            return (1-(zs)**2)**2
-        elif self.function =='exponential':
+            return (1 - (zs)**2)**2
+        elif self.function == 'exponential':
             return np.exp(-zs)
         else:
             print('Unsupported kernel function', self.function)
 
-          
-def cspatiltemporaldist(cal_data_list1,cal_data_list2,y_valuelist,bt_size,deta_t_list,spherical,pred = False):#sita,fname
-    def _haversine(lon1, lat1, lon2, lat2):
-        R = 6371.0 # Earth radius in kilometers
-        dLat = radians(lat2 - lat1)
-        dLon = radians(lon2 - lon1)
-        lat1 = radians(lat1)
-        lat2 = radians(lat2)
-        a = sin(dLat/2)**2 + cos(lat1)*cos(lat2)*sin(dLon/2)**2
-        c = 2*asin(sqrt(a))
-        return R * c
-    nsize =len(cal_data_list1[-1])
-    msize_0 =len(cal_data_list2[-1]) 
-    mlist = [msize_0] 
-    msize = len(cal_data_list2[-1])
-    for p in range(bt_size-1):
-        tick_size = len(cal_data_list2[-(p+2)])
-        msize += tick_size 
+
+
+
+
+# ==============================================================================
+# Spatiotemporal kernel dispatch functions
+#
+# These functions are the public API for building STWR weight matrices.
+# They are registered in the ``ak`` and ``fk`` dispatch dictionaries in
+# sel_bw.py and called by STWR._build_spt_W().
+#
+# Each function returns either:
+#   - The kernel weight matrix W alone (rcdtype=0, default), or
+#   - A tuple (W, dtmat_tol, dst_dtamplist) when rcdtype=1 (for prediction).
+# ==============================================================================
+
+
+def fix_spt_bisquare(coords_list, y_list, tick_times_intervel, sita,
+                     tick_nums, gwr_bw0, points_list=None, alpha=0.3,
+                     dspmat=None, dtmat=None, sorted_dmat=None,
+                     mbpred=False, spherical=False, prediction=False,
+                     rcdtype=0):
+    """
+    Fixed-bandwidth spatiotemporal bi-square kernel.
+
+    Uses a fixed spatial bandwidth (distance) at each time stage,
+    combined with a sigmoid temporal kernel via ``_SpatiotemporalKernel``.
+    """
+    gwr_bw_list = np.repeat(gwr_bw0, tick_nums).tolist()
+    w = _SpatiotemporalKernel(
+        coords_list, y_list, tick_times_intervel, sita,
+        gwr_bw_list, function='spt_bisquare',
+        points_list=points_list, dspmat_tol=dspmat, dtmat_tol=dtmat,
+        sorted_dmat=sorted_dmat, alpha=alpha, mbpred=mbpred,
+        spherical=spherical, pred=prediction)
+
+    if rcdtype == 1:
+        return w.kernel, w.dtmat_tol, w.dst_dtamplist
+    else:
+        return w.kernel
+
+
+def adapt_spt_bisquare(coords_list, y_list, tick_times_intervel,
+                       sita, tick_nums, gwr_bw0,
+                       dspal_m_list=None, dsorteds_m_list=None,
+                       d_t_list=None, dspmat=None, dtmat=None,
+                       points_list=None, alpha=0.3, mbpred=False,
+                       spherical=False, prediction=False, rcdtype=0):
+    """
+    Adaptive-bandwidth spatiotemporal bi-square kernel.
+
+    Uses the k-nearest-neighbor distance as the spatial bandwidth at
+    each time stage, combined with the sigmoid temporal kernel.
+    """
+    gwr_bw_list = np.repeat(gwr_bw0, tick_nums).tolist()
+    w = _SpatiotemporalKernel(
+        coords_list, y_list, tick_times_intervel, sita,
+        bk_list=gwr_bw_list, fixed=False, function='spt_bisquare',
+        dspal_mat_list=dspal_m_list,
+        sorted_dspal_list=dsorteds_m_list,
+        d_tmp_list=d_t_list,
+        dspmat_tol=dspmat, dtmat_tol=dtmat,
+        points_list=points_list,
+        alpha=alpha, mbpred=mbpred, spherical=spherical, pred=prediction)
+
+    if rcdtype == 1:
+        return w.kernel, w.dtmat_tol, w.dst_dtamplist
+    else:
+        return w.kernel
+
+
+def fix_spt_gwr_gaussian(coords_list, y_list, tick_times_intervel, sita,
+                         tick_nums, gwr_bw0, points_list=None, alpha=0.3,
+                         dspmat=None, dtmat=None, sorted_dmat=None,
+                         mbpred=False, spherical=False, prediction=False,
+                         rcdtype=0):
+    """
+    Fixed-bandwidth spatiotemporal Gaussian kernel.
+
+    Uses a fixed spatial bandwidth (distance) at each time stage.
+    """
+    gwr_bw_list = np.repeat(gwr_bw0, tick_nums).tolist()
+    w = _SpatiotemporalKernel(
+        coords_list, y_list, tick_times_intervel, sita,
+        gwr_bw_list, function='spt_gwr_gaussian',
+        truncate=False, points_list=points_list,
+        dspmat_tol=dspmat, dtmat_tol=dtmat,
+        sorted_dmat=sorted_dmat, alpha=alpha, mbpred=mbpred,
+        spherical=spherical, pred=prediction)
+
+    if rcdtype == 1:
+        return w.kernel, w.dtmat_tol, w.dst_dtamplist
+    else:
+        return w.kernel
+
+
+def spt_gwr_gaussian(coords_list, y_list, tick_times_intervel,
+                     sita, tick_nums, gwr_bw0,
+                     dspal_m_list=None, dsorteds_m_list=None,
+                     d_t_list=None, dspmat=None, dtmat=None,
+                     points_list=None, alpha=0.3, mbpred=False,
+                     spherical=False, prediction=False, rcdtype=0):
+    """
+    Adaptive-bandwidth spatiotemporal Gaussian kernel.
+
+    Uses the k-nearest-neighbor distance as the spatial bandwidth at
+    each time stage.
+    """
+    gwr_bw_list = np.repeat(gwr_bw0, tick_nums).tolist()
+    w = _SpatiotemporalKernel(
+        coords_list, y_list, tick_times_intervel, sita,
+        bk_list=gwr_bw_list, fixed=False, function='spt_gwr_gaussian',
+        truncate=False,
+        dspal_mat_list=dspal_m_list,
+        sorted_dspal_list=dsorteds_m_list,
+        d_tmp_list=d_t_list,
+        dspmat_tol=dspmat, dtmat_tol=dtmat,
+        points_list=points_list,
+        alpha=alpha, mbpred=mbpred, spherical=spherical, pred=prediction)
+
+    if rcdtype == 1:
+        return w.kernel, w.dtmat_tol, w.dst_dtamplist
+    else:
+        return w.kernel
+
+
+# ==============================================================================
+# Spatiotemporal distance computation
+# ==============================================================================
+
+
+def cspatiltemporaldist(cal_data_list1, cal_data_list2, y_valuelist,
+                        bt_size, deta_t_list, spherical, pred=False):
+    """
+    Compute spatial and temporal distance matrices for STWR.
+
+    Builds the block-diagonal spatial and temporal distance matrices
+    that combine observations from the latest time stage with those
+    from past stages.
+
+    Parameters
+    ----------
+    cal_data_list1 : list of array
+        Calibration coordinates per time stage (destination).
+    cal_data_list2 : list of array
+        Data coordinates per time stage (source).
+    y_valuelist : list of array
+        Dependent variable values per time stage. Used to compute
+        temporal distance as the rate of value change.
+    bt_size : int
+        Number of time stages to use.
+    deta_t_list : list of float
+        Time intervals between stages.
+    spherical : bool
+        If True, use Haversine distances.
+    pred : bool
+        If True, only compute spatial distances (temporal distances
+        are set to zero, to be estimated separately during prediction).
+
+    Returns
+    -------
+    dspatialmat_list : list of array
+        Spatial distance matrices, one per time stage.
+    dtemporalmat_list : list of array
+        Temporal distance matrices, one per time stage.
+    dspatialmat_tol : array
+        Horizontally concatenated spatial distance matrix.
+    detemporalmat_tol : array
+        Horizontally concatenated temporal distance matrix.
+    """
+    # Determine sizes
+    nsize = len(cal_data_list1[-1])          # Number of points in latest stage
+    msize_0 = len(cal_data_list2[-1])        # Number of points in latest stage (source)
+    mlist = [msize_0]
+    msize = msize_0
+    for p in range(bt_size - 1):
+        tick_size = len(cal_data_list2[-(p + 2)])
+        msize += tick_size
         mlist.append(tick_size)
-    dspatialmat_tol = np.zeros((nsize,msize)) 
-    detemporalmat_tol = np.zeros((nsize,msize)) 
-    dspatialmat  = np.zeros((nsize,msize_0))
-    dtemporalmat = np.zeros((nsize,msize_0)) 
+
+    # Allocate combined matrices
+    dspatialmat_tol = np.zeros((nsize, msize))
+    detemporalmat_tol = np.zeros((nsize, msize))
+    dspatialmat = local_cdist(cal_data_list1[-1], cal_data_list2[-1], spherical)
+    dtemporalmat = np.zeros((nsize, msize_0))
     dspatialmat_list = []
     dtemporalmat_list = []
-    mb_caltmp = True;
-    if bt_size == 1:
-        mb_caltmp = False
-    if spherical:
-        for i in range(nsize) :
-            for j in range(msize_0):
-                dspatialmat[i,j]  = _haversine(cal_data_list1[-1][i][0], cal_data_list1[-1][i][1], cal_data_list2[-1][j][0], cal_data_list2[-1][j][1])               
-    else:
-        dspatialmat = cdist_scipy(cal_data_list1[-1],cal_data_list2[-1])#/gwr_bw_list[-1]  
 
-    dspatialmat_tol[0:nsize,0:msize_0] = dspatialmat
+    # Latest time stage: no temporal distance (it is the reference stage)
+    dspatialmat_tol[0:nsize, 0:msize_0] = dspatialmat
     dspatialmat_list.append(dspatialmat)
-    if(mb_caltmp == False):
-         detemporalmat_tol[0:nsize,0:msize_0] =dtemporalmat 
-         dtemporalmat_list.append(dtemporalmat)  
-    elif(pred == False):
-        delta_t_total =np.sum(deta_t_list)*1.0
-      
-        m_size_tick = msize_0       
-        dtempfirst = np.zeros((nsize,mlist[0]))
-        detemporalmat_tol[:nsize,:mlist[0]]= dtempfirst
+
+    mb_caltmp = (bt_size != 1)  # Only compute temporal distances if > 1 stage
+
+    if not mb_caltmp:
+        detemporalmat_tol[0:nsize, 0:msize_0] = dtemporalmat
+        dtemporalmat_list.append(dtemporalmat)
+    elif not pred:
+        # --- Calibration mode: compute temporal distances ---
+        delta_t_total = np.sum(deta_t_list) * 1.0
+        m_size_tick = msize_0
+
+        # First stage: temporal distance is zero (reference)
+        dtempfirst = np.zeros((nsize, mlist[0]))
+        detemporalmat_tol[:nsize, :mlist[0]] = dtempfirst
         dtemporalmat_list.append(dtempfirst)
 
-        y_value_0 = y_valuelist[-1]
-             
-        for i in range(bt_size-1): 
-            dspatialmat_tick  = np.zeros((nsize,mlist[i+1]))
-            dtemporalmat_tick = np.zeros((nsize,mlist[i+1]))
+        y_value_0 = y_valuelist[-1]  # Latest stage y values (reference)
 
-            delt_tick_tol = np.sum(deta_t_list[-(2+i):])
-            y_value_tick = y_valuelist[-(i+2)]                  
-            if spherical:
-                for j in range(nsize) :
-                    for q in range(mlist[i+1]):
-                        dspatialmat_tick[j,q]  = _haversine(cal_data_list1[-1][j][0], cal_data_list1[-1][j][1], cal_data_list2[-(2+i)][q][0], cal_data_list2[-(2+i)][q][1])
-                        if(y_value_tick[q] == 0):
-                            y_value_tick[q] += 0.000001
-                        dtemporalmat_tick[j,q] =  delta_t_total*abs((y_value_tick[q]-y_value_0[j])/y_value_tick[q])/delt_tick_tol
-            else:
-                dspatialmat_tick = cdist_scipy(cal_data_list1[-1],cal_data_list2[-(2+i)])     
-                y_value_tick = y_value_tick.flatten()
-                for j in range(nsize) :
-                    ydelt_j = np.repeat(y_value_0[j],mlist[i+1],axis=0)  
-                    y_value_tick = np.where(y_value_tick ==0, 0.000001,y_value_tick)    
-                    dtemporalmat_tick[j] =  delta_t_total*(np.absolute(( y_value_tick- ydelt_j)/y_value_tick))/delt_tick_tol
-                                           
-            dspatialmat_tol[:nsize,m_size_tick:m_size_tick+mlist[i+1]] = dspatialmat_tick    
-            detemporalmat_tol[:nsize,m_size_tick:m_size_tick+mlist[i+1]] =dtemporalmat_tick
+        for i in range(bt_size - 1):
+            dspatialmat_tick = local_cdist(
+                cal_data_list1[-1], cal_data_list2[-(2 + i)], spherical)
+            dtemporalmat_tick = np.zeros((nsize, mlist[i + 1]))
+
+            delt_tick_tol = np.sum(deta_t_list[-(2 + i):])
+            y_value_tick = y_valuelist[-(i + 2)].flatten()
+
+            # Temporal distance = normalized rate of y-value change:
+            #   d_tmp = delta_t_total * |(y_tick - y_0) / y_tick| / delt_tick_tol
+            # This captures how much each past observation's value has changed
+            # relative to the latest observation at the same location.
+            y_value_tick = np.where(y_value_tick == 0, 1e-6, y_value_tick)
+            for j in range(nsize):
+                ydelt_j = np.repeat(y_value_0[j], mlist[i + 1], axis=0)
+                dtemporalmat_tick[j] = (
+                    delta_t_total *
+                    np.abs((y_value_tick - ydelt_j) / y_value_tick) /
+                    delt_tick_tol)
+
+            dspatialmat_tol[:nsize,
+                            m_size_tick:m_size_tick + mlist[i + 1]] = dspatialmat_tick
+            detemporalmat_tol[:nsize,
+                              m_size_tick:m_size_tick + mlist[i + 1]] = dtemporalmat_tick
             dspatialmat_list.append(dspatialmat_tick)
             dtemporalmat_list.append(dtemporalmat_tick)
-            m_size_tick +=  mlist[i+1] 
+            m_size_tick += mlist[i + 1]
     else:
-         m_size_tick = msize_0 
-         detemporalmat_tol = dtemporalmat
-         for i in range(bt_size-1):
-             dspatialmat_tick  = np.zeros((nsize,mlist[i+1]))
-             if spherical:
-                for j in range(nsize) :
-                    for q in range(mlist[i+1]):
-                        dspatialmat_tick[j,q]  = _haversine(cal_data_list1[-1][j][0], cal_data_list1[-1][j][1], cal_data_list2[-(2+i)][q][0], cal_data_list2[-(2+i)][q][1])
-             else:
-                dspatialmat_tick = cdist_scipy(cal_data_list1[-1],cal_data_list2[-(2+i)])#/gwr_bw_list[-(2+i)] 
-             dspatialmat_tol[:nsize,m_size_tick:m_size_tick+mlist[i+1]] = dspatialmat_tick
-             dspatialmat_list.append(dspatialmat_tick)
-             m_size_tick = m_size_tick + mlist[i+1] 
-    return dspatialmat_list,dtemporalmat_list,dspatialmat_tol,detemporalmat_tol
+        # --- Prediction mode: spatial distances only ---
+        m_size_tick = msize_0
+        detemporalmat_tol = dtemporalmat  # Temporal distances filled later
+        for i in range(bt_size - 1):
+            dspatialmat_tick = local_cdist(
+                cal_data_list1[-1], cal_data_list2[-(2 + i)], spherical)
+            dspatialmat_tol[:nsize,
+                            m_size_tick:m_size_tick + mlist[i + 1]] = dspatialmat_tick
+            dspatialmat_list.append(dspatialmat_tick)
+            m_size_tick += mlist[i + 1]
+
+    return (dspatialmat_list, dtemporalmat_list,
+            dspatialmat_tol, detemporalmat_tol)
 
 
-def spatialtemporalkernel_funcs(fname,d_spa,d_tmp,m_dtm0,alpha=0.3):
-        # functions follow Anselin and Rey (2010) table 5.4
-        if m_dtm0:
-            if fname == 'spt_triangular':
-                return (1 - d_spa)
-            elif fname == 'spt_uniform':
-                return np.ones(d_spa.shape) * 0.5
-            elif fname == 'spt_quadratic':
-                return (3. / 4) * (1 - d_spa ** 2)
-            elif fname == 'spt_quartic':
-                return (15. / 16) * (1 - d_spa ** 2) ** 2
-            elif fname == 'spt_gaussian':
-                c = np.pi * 2
-                c = c ** (-0.5)
-                return c * np.exp(-(d_spa ** 2) / 2.)
-            elif fname == 'spt_gwr_gaussian':
-                return np.exp(-0.5*(d_spa)**2)
-            elif fname == 'spt_bisquare':
-                return (1-(d_spa)**2)**2
-            elif fname =='spt_exponential':
-                return np.exp(-d_spa)
-            else:
-                print('Unsupported kernel function',fname)
+def spatialtemporalkernel_funcs(fname, d_spa, d_tmp, m_dtm0, alpha=0.3):
+    """
+    Evaluate the spatiotemporal kernel function.
+
+    Combines a spatial kernel with a sigmoid temporal kernel using the
+    ``alpha`` weighting parameter.
+
+    Parameters
+    ----------
+    fname : str
+        Kernel function name (e.g., 'spt_bisquare', 'spt_gwr_gaussian').
+    d_spa : array
+        Standardized spatial distances (d / bandwidth).
+    d_tmp : array
+        Temporal distances (rate-of-change based).
+    m_dtm0 : bool
+        If True, use spatial-only kernel (single time stage).
+    alpha : float
+        Balance parameter in [0, 1]. 0 = spatial only, 1 = temporal only.
+
+    Returns
+    -------
+    array : Kernel weights.
+
+    Notes
+    -----
+    The combined kernel is:
+
+        W = (1 - alpha) * K_spatial(d_spa) + alpha * K_temporal(d_tmp)
+
+    where K_temporal(d) = 2 / (1 + exp(-d)) - 1  (shifted sigmoid).
+    For 'spt_gwr_gaussian', a multiplicative combination is used instead.
+    """
+    if m_dtm0:
+        # Spatial-only kernel (single time stage)
+        if fname == 'spt_triangular':
+            return (1 - d_spa)
+        elif fname == 'spt_uniform':
+            return np.ones(d_spa.shape) * 0.5
+        elif fname == 'spt_quadratic':
+            return (3. / 4) * (1 - d_spa ** 2)
+        elif fname == 'spt_quartic':
+            return (15. / 16) * (1 - d_spa ** 2) ** 2
+        elif fname == 'spt_gaussian':
+            c = np.pi * 2
+            c = c ** (-0.5)
+            return c * np.exp(-(d_spa ** 2) / 2.)
+        elif fname == 'spt_gwr_gaussian':
+            return np.exp(-0.5 * (d_spa)**2)
+        elif fname == 'spt_bisquare':
+            return (1 - (d_spa)**2)**2
+        elif fname == 'spt_exponential':
+            return np.exp(-d_spa)
         else:
-            if fname == 'spt_triangular':
-                return ((1-alpha)*(1 - d_spa)+ alpha*(2/(1+np.exp(-d_tmp))-1))
-            elif fname == 'spt_uniform':
-                return ((1-alpha)*np.ones(d_spa.shape) * 0.5+ alpha*(2/(1+np.exp(-d_tmp))-1))
-            elif fname == 'spt_quadratic':
-                return ((1-alpha)*(3. / 4) * (1 - d_spa ** 2)+ alpha*(2/(1+np.exp(-d_tmp))-1))
-            elif fname == 'spt_quartic':
-                return ((1-alpha)*(15. / 16) * (1 - d_spa ** 2) ** 2 + alpha*(2/(1+np.exp(-d_tmp))-1))
-            elif fname == 'spt_gaussian':
-                c = np.pi * 2
-                c = c ** (-0.5)
-                return ((1-alpha)*(c * np.exp(-(d_spa ** 2) / 2.))+alpha*(2/(1+np.exp(-d_tmp))-1))
-            elif fname == 'spt_gwr_gaussian':
-                return np.exp(-0.5*(d_spa)**2)*(1/(1+np.exp(-d_tmp))-0.5)
-            elif fname == 'spt_bisquare':
-                return ((1-alpha)*((1-(d_spa)**2)**2)+alpha*(2/(1+np.exp(-d_tmp))-1))
-            elif fname =='spt_exponential':
-                return ((1-alpha)*np.exp(-d_spa)+alpha*(2/(1+np.exp(-d_tmp))-1))
-            else:
-                print('Unsupported kernel function',fname) 
+            print('Unsupported kernel function', fname)
+    else:
+        # Combined spatiotemporal kernel
+        # Temporal component: shifted sigmoid = 2/(1+exp(-d)) - 1, range [0,1]
+        if fname == 'spt_triangular':
+            return ((1 - alpha) * (1 - d_spa)
+                    + alpha * (2 / (1 + np.exp(-d_tmp)) - 1))
+        elif fname == 'spt_uniform':
+            return ((1 - alpha) * np.ones(d_spa.shape) * 0.5
+                    + alpha * (2 / (1 + np.exp(-d_tmp)) - 1))
+        elif fname == 'spt_quadratic':
+            return ((1 - alpha) * (3. / 4) * (1 - d_spa ** 2)
+                    + alpha * (2 / (1 + np.exp(-d_tmp)) - 1))
+        elif fname == 'spt_quartic':
+            return ((1 - alpha) * (15. / 16)
+                    * (1 - d_spa ** 2) ** 2
+                    + alpha * (2 / (1 + np.exp(-d_tmp)) - 1))
+        elif fname == 'spt_gaussian':
+            c = np.pi * 2
+            c = c ** (-0.5)
+            return ((1 - alpha) * (c * np.exp(-(d_spa ** 2) / 2.))
+                    + alpha * (2 / (1 + np.exp(-d_tmp)) - 1))
+        elif fname == 'spt_gwr_gaussian':
+            # Multiplicative combination for Gaussian STWR
+            return (np.exp(-0.5 * (d_spa)**2)
+                    * (1 / (1 + np.exp(-d_tmp)) - 0.5))
+        elif fname == 'spt_bisquare':
+            return ((1 - alpha) * ((1 - (d_spa)**2)**2)
+                    + alpha * (2 / (1 + np.exp(-d_tmp)) - 1))
+        elif fname == 'spt_exponential':
+            return ((1 - alpha) * np.exp(-d_spa)
+                    + alpha * (2 / (1 + np.exp(-d_tmp)) - 1))
+        else:
+            print('Unsupported kernel function', fname)
 
 class _SpatiotemporalKernel(object):
     """
-    STWR Spatiotemporal kernel function specifications.
+    Spatiotemporal kernel for STWR models.
 
-    """ 
-    def __init__(self, data_list,y_list,tick_times_intervel,sita = None, gwr_bw_list = None,
+    Computes a combined spatial-temporal weight matrix that weights
+    observations from multiple time stages. The spatial component uses
+    standard GWR kernel functions (Gaussian, bi-square, exponential),
+    while the temporal component uses a sigmoid function driven by the
+    rate of value change between time stages.
+
+    The combined weight at location i for past observation j is:
+
+        W_ij = (1 - alpha) * K_spatial(d_ij / bw) + alpha * K_temporal(dt_ij)
+
+    where K_temporal(dt) = 2/(1 + exp(-dt)) - 1, a shifted sigmoid.
+
+    The spatial bandwidth can shrink linearly over time stages via the
+    ``sita`` parameter: bw_t = bw_0 - tan(sita) * delta_t.
+
+    Parameters
+    ----------
+    data_list : list of array
+        Coordinates for each time stage, oldest to newest.
+    y_list : list of array
+        Dependent variable for each time stage.
+    tick_times_intervel : list of float
+        Time intervals between consecutive stages.
+    sita : float
+        Slope of bandwidth change over time (radians). Spatial bandwidth
+        shrinks as bw_t = bw_0 - tan(sita) * delta_t.
+    gwr_bw_list : list of float, optional
+        Fixed bandwidth values per time stage.
+    bk_list : list of int, optional
+        Adaptive bandwidth (k nearest neighbors) per time stage.
+    fixed : bool
+        True for fixed (distance) bandwidth, False for adaptive.
+    function : str
+        Kernel function name (e.g., 'spt_bisquare').
+    eps : float
+        Small value added to weights to avoid zero-variance issues.
+    truncate : bool
+        If True, set weights to zero beyond the bandwidth.
+    points_list : list of array, optional
+        Prediction point coordinates per time stage.
+    dspal_mat_list : list of array, optional
+        Pre-computed spatial distance matrices.
+    sorted_dspal_list : list of array, optional
+        Pre-computed sorted spatial distances.
+    d_tmp_list : list of array, optional
+        Pre-computed temporal distance matrices.
+    dspmat_tol : array, optional
+        Horizontally concatenated spatial distance matrix.
+    dtmat_tol : array, optional
+        Horizontally concatenated temporal distance matrix.
+    alpha : float
+        Balance parameter in [0, 1]. 0 = spatial only, 1 = temporal only.
+    mbpred : bool
+        If True, use memory-efficient prediction mode.
+    spherical : bool
+        If True, compute Haversine distances.
+    pred : bool
+        If True, prediction mode (spatial distances only for prediction
+        points with temporal distances estimated via IDW).
+    """
+
+    def __init__(self, data_list, y_list, tick_times_intervel,
+                 sita=None, gwr_bw_list=None,
                  bk_list =None, fixed=True,function='spt_bisquare',eps=1.0000001,
                  truncate=True,points_list=None, dspal_mat_list=None,sorted_dspal_list=None,
                  d_tmp_list=None,dspmat_tol=None,dtmat_tol=None,alpha =0.3,mbpred=False,spherical=False,pred = False,seed = None):       
-        datalens = len(data_list) 
-        if issubclass(type(data_list[0]), scipy.spatial.KDTree):
-            for i in range(datalens):
-                self.data_list[i] = data_list[i].data
-                data_list[i] = self.data_list[i]
-        else:
-            self.data_list = data_list
+        #datalens = len(data_list) 
+        # if issubclass(type(data_list[0]), scipy.spatial.KDTree):
+        #     for i in range(datalens):
+        #         self.data_list[i] = data_list[i].data
+        #         data_list[i] = self.data_list[i]
+        # else:
+        #     self.data_list = data_list
         if bk_list is not None:
             self.bk_list = bk_list
             self.nbt_len = len(bk_list)
@@ -588,7 +727,7 @@ class _SpatiotemporalKernel(object):
                  
                  m_size_tick = mlist[0]
                  for i in range(self.nbt_len-1):
-                     self.my_bw_list[-(2+i)] =  self.my_bw_list[-(i+1)] - tan(sita)*self.tick_times_intls[-(i+1)]
+                     self.my_bw_list[-(2+i)] =  self.my_bw_list[-(i+1)] - np.tan(sita)*self.tick_times_intls[-(i+1)]
                      bw_expand =self.my_bw_list[-(2+i)].copy()
                      d_sort_spa_tick = self.d_spa_list[i+1].copy()
                      d_sort_spa_tick = np.sort(d_sort_spa_tick)
@@ -632,7 +771,7 @@ class _SpatiotemporalKernel(object):
                 except:
                     self.gwr_bw_list[-1] = np.ones((len(data_list[-1]),1),'float')*self.gwr_bw_list[-1] 
                 for i in range(self.nbt_len-1):
-                    self.gwr_bw_list[-(2+i)] =  self.gwr_bw_list[-(i+1)] - tan(sita)*self.tick_times_intls[-(i+1)]
+                    self.gwr_bw_list[-(2+i)] =  self.gwr_bw_list[-(i+1)] - np.tan(sita)*self.tick_times_intls[-(i+1)]
                     try:
                         self.gwr_bw_list[-(2+i)] = np.array(self.gwr_bw_list[-(2+i)])
                         self.gwr_bw_list[-(2+i)].shape = (len(self.gwr_bw_list[-(2+i)]), 1)
@@ -670,7 +809,7 @@ class _SpatiotemporalKernel(object):
             for i in range(self.nbt_len-1):
                      if gwr_bw_list is not None:
                          self.my_bw_list =self.gwr_bw_list  
-                     self.my_bw_list[-(2+i)] =  self.my_bw_list[-(i+1)] - tan(sita)*self.tick_times_intls[-(i+1)]
+                     self.my_bw_list[-(2+i)] =  self.my_bw_list[-(i+1)] - np.tan(sita)*self.tick_times_intls[-(i+1)]
                      bw_expand =self.my_bw_list[-(2+i)].copy()
                      if self.searching:
                          sorted_dspmat_min = self.dsorted_spa[i+1][:,:self.m_minbw]
@@ -694,20 +833,26 @@ class _SpatiotemporalKernel(object):
             self.kernel += np.random.normal(0,m_eps,self.kernel.shape)
         
     def _set_spt_sita(self):
-            if self.searching:
-                if self.bk_list is not None:
-                    dspmat0 =self.dsorted_spa[0][:,:self.bk_list[-1]]
-                else:    
-                    dspmat0 = self.d_spa_list[0] 
+        """
+        Determine the initial spatial bandwidth for the latest time stage.
+
+        For fixed bandwidth: uses the maximum distance across all neighbors.
+        For adaptive bandwidth: uses the local k-nearest-neighbor distance.
+        """
+        if self.searching:
+            if self.bk_list is not None:
+                dspmat0 = self.dsorted_spa[0][:, :self.bk_list[-1]]
             else:
-                if self.bk_list is not None:
-                    dspmat0  = np.sort(self.d_spa_list[0])[:,:self.bk_list[-1]]
-                else:
-                    dspmat0 =  self.d_spa_list[0] 
-            if self.fixed:
-                bandwidth0 = dspmat0.max() * self.eps
-                n = len(self.data_list[-1])
-                self.my_bw_list[-1] = np.ones((n, 1), 'float') * bandwidth0
+                dspmat0 = self.d_spa_list[0]
+        else:
+            if self.bk_list is not None:
+                dspmat0 = np.sort(self.d_spa_list[0])[:, :self.bk_list[-1]]
             else:
-                self.my_bw_list[-1] = dspmat0.max(axis=1) * self.eps
-                self.my_bw_list[-1].shape = (self.my_bw_list[-1].size, 1)
+                dspmat0 = self.d_spa_list[0]
+        if self.fixed:
+            bandwidth0 = dspmat0.max() * self.eps
+            n = len(self.data_list[-1])
+            self.my_bw_list[-1] = np.ones((n, 1), 'float') * bandwidth0
+        else:
+            self.my_bw_list[-1] = dspmat0.max(axis=1) * self.eps
+            self.my_bw_list[-1].shape = (self.my_bw_list[-1].size, 1)

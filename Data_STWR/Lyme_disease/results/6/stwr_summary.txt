@@ -1,0 +1,58 @@
+===========================================================================
+Model type                                                         Gaussian
+Number of observations:                                                 507
+Number of covariates:                                                     6
+
+Global Regression Results
+---------------------------------------------------------------------------
+Residual sum of squares:                                        6391244.626
+Log-likelihood:                                                   -1130.476
+AIC:                                                               2272.953
+AICc:                                                              2275.648
+BIC:                                                            6390408.453
+R2:                                                                   0.227
+Adj. R2:                                                              0.204
+
+Variable                              Est.         SE  t(Est/SE)    p-value
+------------------------------- ---------- ---------- ---------- ----------
+X0                                 126.905     15.239      8.327      0.000
+X1                                 -34.911     16.587     -2.105      0.035
+X2                                  43.650     15.101      2.891      0.004
+X3                                  24.761     14.902      1.662      0.097
+X4                                  76.169     16.330      4.664      0.000
+X5                                 -53.729     15.722     -3.418      0.001
+
+Spatiotemporal Weighted Regression (STWR) Results
+---------------------------------------------------------------------------
+Spatial kernel:                                        Adaptive spt_bisquare
+Model sita used:                                                      0.000
+Model alpha used:                                                     0.000
+Init Bandwidth used:                                                 50.000
+Model Ticktimes used:                                                 3.000
+Model Ticktimes Intervels:                                            5.000
+
+Diagnostic information
+---------------------------------------------------------------------------
+Residual sum of squares:                                        2886157.697
+Effective number of parameters (trace(S)):                           14.775
+Degree of freedom (n - trace(S)):                                   492.225
+Sigma estimate:                                                      76.573
+Log-likelihood:                                                   -1063.299
+AIC:                                                               2158.148
+AICc:                                                              2159.228
+BIC:                                                               2224.854
+R2:                                                                   0.651
+Adj. alpha (95%):                                                     0.020
+Adj. critical t value (95%):                                          2.328
+
+Summary Statistics For STWR Parameter Estimates
+---------------------------------------------------------------------------
+Variable                   Mean        STD        Min     Median        Max
+-------------------- ---------- ---------- ---------- ---------- ----------
+X0                      118.999     54.859     48.549     99.349    264.694
+X1                      -50.191     36.621   -132.018    -34.847      9.782
+X2                       50.133     97.180    -31.983      7.701    435.710
+X3                       21.929     25.018    -11.244     13.299    127.696
+X4                       29.191     40.580    -10.764     18.711    185.308
+X5                      -32.070     34.443   -121.276    -18.958     15.023
+===========================================================================
